@@ -212,9 +212,16 @@ class CampaignDiagram:
                 labels[kernel.name] = True
 
 
+            if kernel.start != current_parallel_start:
+                current_parallel_start = kernel.start
+                current_compute_util = kernel.compute_util
+                bw_util_available = 1.0 * bw_util_scaling
+            else:
+                current_compute_util += kernel.compute_util
+
             # Draw the compute line with a label (name)
-            ax.plot([kernel.start, kernel.end],
-                    [kernel.compute_util, kernel.compute_util], 
+            ax.plot([current_parallel_start, kernel.end],
+                    [current_compute_util, current_compute_util],
                     color=kernel.compute_color,
                     lw=2,
                     label=label)
@@ -222,8 +229,8 @@ class CampaignDiagram:
             # Draw the memory rectangle centered at compute_util (no label for memory)
 
             rect_height = bw_util_scaling * kernel.bw_util
-            rect_bottom = kernel.compute_util - rect_height / 2
-            rect = patches.Rectangle((kernel.start, rect_bottom),
+            rect_bottom = current_compute_util - rect_height / 2
+            rect = patches.Rectangle((current_parallel_start, rect_bottom),
                                      kernel.duration, 
                                      rect_height,
                                      color=kernel.bw_color,
@@ -232,30 +239,26 @@ class CampaignDiagram:
 
             # Draw the light gray box instead of the two dotted lines
 
-            if kernel.start != current_parallel_start:
-                current_parallel_start = kernel.start
-                bw_util_limit = bw_util_scaling
-            
-            bw_top = kernel.compute_util + bw_util_limit / 2  # Top of the memory limit
-            bw_bottom = kernel.compute_util - bw_util_limit / 2  # Bottom of the memory limit
-            bw_rect = patches.Rectangle((kernel.start, bw_bottom),
+            bw_top = current_compute_util + bw_util_available / 2  # Top of the memory limit
+            bw_bottom = current_compute_util - bw_util_available / 2  # Bottom of the memory limit
+            bw_rect = patches.Rectangle((current_parallel_start, bw_bottom),
                                         kernel.duration, 
-                                        bw_util_limit,
+                                        bw_util_available,
                                         color='lightgray',
                                         alpha=0.3)
             ax.add_patch(bw_rect)
 
-            bw_util_limit -= bw_util_scaling * kernel.bw_util
+            bw_util_available -= bw_util_scaling * kernel.bw_util
 
         # Format the plot
         start_min = min([kernel.start for kernel in self.cascade]) - 0.1
         end_max = max([kernel.end for kernel in self.cascade]) + 0.1
-        max_util = max([kernel.compute_util + kernel.bw_util_limit for kernel in self.cascade])
+        max_util = max([kernel.compute_util + 1.0*bw_util_scaling for kernel in self.cascade])
 
         ax.set_xlim(start_min, end_max)
         ax.set_ylim(0, max_util)
         ax.set_xlabel('Time')
-        ax.set_ylabel('Utilization')
+        ax.set_ylabel('Compute Utilization')
 
         # Move the legend outside the right side of the plot
         ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
