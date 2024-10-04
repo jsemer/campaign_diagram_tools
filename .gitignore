@@ -1,0 +1,21 @@
+# Ignore emacs backup files
+
+*~
+\#*\#
+
+# Ignore .nfs temp file
+
+.nfs*
+
+# Application-specific ignores
+
+.ipynb_checkpoints
+__pycache__
+
+*.egg-info
+dist/*
+installed_files.txt
+
+# Keep directories with .gitkeep
+
+!/**/.gitkeep
