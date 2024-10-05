@@ -293,9 +293,9 @@ def pipelineCascade(cascade, spread=False):
 
     # TODO: have Cascades support "+"
 
-    task1 = copy.deepcopy(cascade).kernels + [winddown]
-    task2 = [windup] + copy.deepcopy(cascade).kernels
-    
+    task1 = copy.deepcopy(cascade).kernels[0::2] + [winddown]
+    task2 = [windup] + copy.deepcopy(cascade).kernels[1::2]
+
     # Start with a default previous_end value of zero
     previous_end = 0
     
