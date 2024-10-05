@@ -179,6 +179,58 @@ class Cascade:
 
         return split_cascade
 
+    def pipeline(self, spread=False):
+
+        # TODO: Handle cascades with more than two kernels
+
+        # Create task cascades
+
+        windup = Kernel(name=None,
+                        duration=0,
+                        compute_util=0,
+                        bw_util=0)
+
+        winddown = Kernel(name=None,
+                          duration=0,
+                          compute_util=0,
+                          bw_util=0)
+
+        # TODO: have Cascades support "+"
+
+        task1 = copy.deepcopy(self).kernels[0::2] + [winddown]
+        task2 = [windup] + copy.deepcopy(self).kernels[1::2]
+
+        # Start with a default previous_end value of zero
+        previous_end = 0
+
+        # Iterate over both lists in tandem
+        for kernel1, kernel2 in zip(task1, task2):
+            kernel1.set_start(previous_end)
+            kernel2.set_start(previous_end)
+
+            if spread:
+                if kernel1.duration != 0 and kernel1.duration < kernel2.duration:
+                    kernel1.dilate(kernel2.duration/kernel1.duration)
+                if kernel2.duration != 0 and kernel2.duration < kernel1.duration:
+                    kernel2.dilate(kernel1.duration/kernel2.duration)
+
+            # TODO: Handle resource overutilization
+
+            previous_end = max(kernel1.end, kernel2.end)
+
+
+#            TODO: Add debug tracing
+#            print(f"{kernel1.start = }")
+#            print(f"{kernel2.start = }")
+#            print(f"{previous_end =}")
+
+        # TODO: allow Cascade creation without overwriting start/end times
+
+        t = Cascade([])
+        t.kernels = task1+task2
+        return t
+
+
     def __iter__(self):
         """Return an iterator over the Kernel instances."""
         return iter(self.kernels)
@@ -274,57 +326,6 @@ class CampaignDiagram:
         kernel_states = "\n".join([str(kernel) for kernel in self.kernel_list])
         return f"CampaignDiagram with kernels:\n{kernel_states}"
 
-
-def pipelineCascade(cascade, spread=False):
-
-    # TODO: Handle cascades with more than two kernels
-    
-    # Create task cascades
-
-    windup = Kernel(name=None,
-                    duration=0,
-                    compute_util=0,
-                    bw_util=0)
-
-    winddown = Kernel(name=None,
-                      duration=0,
-                      compute_util=0,
-                      bw_util=0)
-
-    # TODO: have Cascades support "+"
-
-    task1 = copy.deepcopy(cascade).kernels[0::2] + [winddown]
-    task2 = [windup] + copy.deepcopy(cascade).kernels[1::2]
-
-    # Start with a default previous_end value of zero
-    previous_end = 0
-    
-    # Iterate over both lists in tandem
-    for kernel1, kernel2 in zip(task1, task2):
-        kernel1.set_start(previous_end)
-        kernel2.set_start(previous_end)
-
-        if spread:
-            if kernel1.duration != 0 and kernel1.duration < kernel2.duration:
-                kernel1.dilate(kernel2.duration/kernel1.duration)
-            if kernel2.duration != 0 and kernel2.duration < kernel1.duration:
-                kernel2.dilate(kernel1.duration/kernel2.duration)
-
-        # TODO: Handle resource overutilization
-
-        previous_end = max(kernel1.end, kernel2.end)
-
-    
-#        TODO: Add debug tracing
-#        print(f"{kernel1.start = }")
-#        print(f"{kernel2.start = }")
-#        print(f"{previous_end =}")
-
-    # TODO: allow Cascade creation without overwriting start/end times
-    
-    t = Cascade([])
-    t.kernels = task1+task2
-    return t
 
 
 
