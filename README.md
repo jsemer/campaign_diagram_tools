@@ -38,6 +38,8 @@ rm -rf ~/.local/lib/python3.X/site-packages/CampaignDiagram-0.1.dist-info
 
 ## TODO
 
+Embed tiling in pipeline.
+
 Don't install using setup.py directly use pypa/build and/or pypa/install
 
 Use toml file rather than setup.py

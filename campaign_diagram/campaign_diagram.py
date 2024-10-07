@@ -36,7 +36,7 @@ class KernelColor:
         "#98FB98",  # Pale Green
         "#9370DB"   # Medium Purple
     ]
-    
+
     def __init__(self):
         self.current_index = 0  # Start with the first color
         self.name2color = {}
@@ -49,21 +49,21 @@ class KernelColor:
             color = self.nextColor()
             self.name2color[name] = color
             return color
-    
+
     def nextColor(self) -> str:
         """Return the next color in the list and wrap around if necessary."""
         color = self.colors[self.current_index]
         self.current_index = (self.current_index + 1) % len(self.colors)
         return color
-    
+
     @staticmethod
     def lightenColor(hex_color: str, amount: float) -> str:
         """Lighten the given hex color by the specified amount.
-        
+
         Args:
             hex_color: A string representing the color in hex format (e.g., '#rrggbb').
             amount: A float value between 0-1 indicating the percentage to lighten the color.
-        
+
         Returns:
             A new hex color string that is lightened.
         """
@@ -71,12 +71,12 @@ class KernelColor:
         r = int(hex_color[1:3], 16)
         g = int(hex_color[3:5], 16)
         b = int(hex_color[5:7], 16)
-        
+
         # Lighten the color
         r = min(int(r + (255 - r) * amount), 255)
         g = min(int(g + (255 - g) * amount), 255)
         b = min(int(b + (255 - b) * amount), 255)
-        
+
         # Convert back to hex
         return f'#{r:02X}{g:02X}{b:02X}'
 
@@ -93,7 +93,7 @@ class Kernel:
                  bw_util_limit=1.0):
 
         self.name = name
-        self.start = 0 
+        self.start = 0
         self.duration = duration
         self.end = duration
         self.compute_util = compute_util
@@ -121,7 +121,7 @@ class Kernel:
 
     def scale_duration(self, scale):
         self.duration *= scale
-        
+
         return self
 
     def dilate(self, dilation):
@@ -136,7 +136,7 @@ class Kernel:
         self.end = self.start + self.duration
 
         return self
-        
+
     def __str__(self):
         """Returns a human-readable string representation of the Kernel's state."""
         return (f"Kernel(name={self.name}, start={self.start}, duration={self.duration}, "
@@ -145,15 +145,18 @@ class Kernel:
 
 class Cascade:
     """A class to manage a collection of Kernel instances."""
-    
+
+    # TODO: add support for  "+"
+    # TODO: add supprot for len()
+
     def __init__(self, kernels: List[Kernel], offset=0):
         kernel_color = KernelColor()
-        
+
         last_end = offset
         for kernel in kernels:
             kernel.set_start(last_end)
             last_end = kernel.end
-            
+
         for kernel in kernels:
             name = kernel.name
             kernel.set_color(kernel_color.getColor(name))
@@ -169,54 +172,45 @@ class Cascade:
         """ Split each task of a cascade into "parts" parts """
 
         parts_fraction = 1.0/parts
-        
+
         split_kernels = []
-        
+
         for kernel in self.kernels:
             split_kernels.append(copy.copy(kernel).scale_duration(parts_fraction))
 
-        split_cascade = Cascade([copy.copy(kernel) for kernel in parts*split_kernels]) 
+        split_cascade = Cascade([copy.copy(kernel) for kernel in parts*split_kernels])
 
         return split_cascade
 
-    def pipeline(self, spread=False):
+    def pipeline(self, stages=2, spread=False):
 
-        # TODO: Handle cascades with more than two kernels
+        tasks = []
 
-        # Create task cascades
+        for stage in range(stages):
+            task = self._create_spacers(stage)
+            task.extend(copy.deepcopy(self).kernels[stage::stages])
+            task.extend(self._create_spacers(stages-stage-1))
 
-        windup = Kernel(name=None,
-                        duration=0,
-                        compute_util=0,
-                        bw_util=0)
-
-        winddown = Kernel(name=None,
-                          duration=0,
-                          compute_util=0,
-                          bw_util=0)
-
-        # TODO: have Cascades support "+"
-
-        task1 = copy.deepcopy(self).kernels[0::2] + [winddown]
-        task2 = [windup] + copy.deepcopy(self).kernels[1::2]
+            tasks.append(task)
 
         # Start with a default previous_end value of zero
         previous_end = 0
 
         # Iterate over both lists in tandem
-        for kernel1, kernel2 in zip(task1, task2):
-            kernel1.set_start(previous_end)
-            kernel2.set_start(previous_end)
+        for kernels in zip(*tasks):
 
-            if spread:
-                if kernel1.duration != 0 and kernel1.duration < kernel2.duration:
-                    kernel1.dilate(kernel2.duration/kernel1.duration)
-                if kernel2.duration != 0 and kernel2.duration < kernel1.duration:
-                    kernel2.dilate(kernel1.duration/kernel2.duration)
+            max_duration = max([kernel.duration for kernel in kernels])
+
+            for kernel in kernels:
+                kernel.set_start(previous_end)
+
+                if spread:
+                    if kernel.duration !=0 and kernel.duration < max_duration:
+                        kernel.dilate(max_duration/kernel.duration)
 
             # TODO: Handle resource overutilization
 
-            previous_end = max(kernel1.end, kernel2.end)
+            previous_end += max_duration
 
 
 #            TODO: Add debug tracing
@@ -227,14 +221,25 @@ class Cascade:
         # TODO: allow Cascade creation without overwriting start/end times
 
         t = Cascade([])
-        t.kernels = task1+task2
+        t.kernels = [kernel for task in tasks for kernel in task]
         return t
+
+    def _create_spacers(self, count):
+
+        spacer = Kernel(name=None,
+                        duration=0,
+                        compute_util=0,
+                        bw_util=0)
+
+        spacers =  [copy.copy(spacer) for _ in range(count)]
+
+        return spacers
 
 
     def __iter__(self):
         """Return an iterator over the Kernel instances."""
         return iter(self.kernels)
-    
+
     def __str__(self):
         """Returns a human-readable string representation of the CampaignDiagram's state."""
         kernel_states = "\n".join([str(kernel) for kernel in self.kernels])
@@ -253,8 +258,10 @@ class CampaignDiagram:
 
         labels = {}
         current_parallel_start = None
-        
+
         for kernel in self.cascade:
+
+#            print(f"Plotting: {kernel.name = } {kernel.start = } {kernel.duration} {kernel.compute_util = }")
 
             # Only label each kernel name once
             if kernel.name is None or kernel.name in labels:
@@ -283,7 +290,7 @@ class CampaignDiagram:
             rect_height = bw_util_scaling * kernel.bw_util
             rect_bottom = current_compute_util - rect_height / 2
             rect = patches.Rectangle((current_parallel_start, rect_bottom),
-                                     kernel.duration, 
+                                     kernel.duration,
                                      rect_height,
                                      color=kernel.bw_color,
                                      alpha=0.5)
@@ -294,7 +301,7 @@ class CampaignDiagram:
             bw_top = current_compute_util + bw_util_available / 2  # Top of the memory limit
             bw_bottom = current_compute_util - bw_util_available / 2  # Bottom of the memory limit
             bw_rect = patches.Rectangle((current_parallel_start, bw_bottom),
-                                        kernel.duration, 
+                                        kernel.duration,
                                         bw_util_available,
                                         color='lightgray',
                                         alpha=0.3)
@@ -303,12 +310,15 @@ class CampaignDiagram:
             bw_util_available -= bw_util_scaling * kernel.bw_util
 
         # Format the plot
+
+        # TODO: Max util is not calculated correctly
+
         start_min = min([kernel.start for kernel in self.cascade]) - 0.1
         end_max = max([kernel.end for kernel in self.cascade]) + 0.1
         max_util = max([kernel.compute_util + 1.0*bw_util_scaling for kernel in self.cascade])
 
         ax.set_xlim(start_min, end_max)
-        ax.set_ylim(0, max_util)
+        ax.set_ylim(0, 1.4*max_util)
         ax.set_xlabel('Time')
         ax.set_ylabel('Compute Utilization')
 
@@ -353,5 +363,3 @@ if __name__ == "__main__":
     # Create the plot with a list of kernel instances
     cascade1 = Cascade([kernel1a, kernel1b, kernel1c])
     CampaignDiagram(cascade1).draw()
-
-    
