@@ -95,18 +95,22 @@ class Kernel:
         self.name = name
         self.start = 0
         self.duration = duration
-        self.end = duration
         self.compute_util = compute_util
         self.bw_util = bw_util
         self.bw_util_limit = bw_util_limit
         self.compute_color = None
         self.bw_color = None
 
+    @property
+    def end(self):
+        """ Return end based on start and duration properties """
+
+        return self.start + self.duration
+
     def set_start(self, last_end=0):
         """Sets the start time based on the last end or defaults to 0."""
 
         self.start = last_end
-        self.end = last_end + self.duration
 
         return self
 
@@ -132,8 +136,6 @@ class Kernel:
         self.compute_util *= inverse_dilation
         self.bw_util *= inverse_dilation
         self.bw_util_limit *= inverse_dilation
-
-        self.end = self.start + self.duration
 
         return self
 
