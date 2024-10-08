@@ -8,6 +8,9 @@
 #
 # Import the campaign diagram class
 #
+import sys
+
+sys.path.append("../../")
 from campaign_diagram import *
 
 
@@ -84,7 +87,7 @@ CampaignDiagram(tiled_cascade).draw()
 
 # Pipelined diagram (undilated)
 
-pipelined_cascade = pipelineCascade(tiled_cascade)
+pipelined_cascade = tiled_cascade.pipeline()
     
 CampaignDiagram(pipelined_cascade).draw()
 
@@ -94,7 +97,7 @@ CampaignDiagram(pipelined_cascade).draw()
 
 # Pipelined diagram (dilated)
 
-pipelined_cascade2 = pipelineCascade(tiled_cascade, spread=True)
+pipelined_cascade2 = tiled_cascade.pipeline(spread=True)
 #print(f"{pipelinedcascade}")
     
 CampaignDiagram(pipelined_cascade2).draw()
