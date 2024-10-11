@@ -20,16 +20,19 @@ from campaign_diagram import *
 # Example usage with multiple Kernel instances
 
 kernel1a = Kernel(name='EinsumA',
+                  start=0,
                   duration=3,
                   compute_util=0.7,
                   bw_util=0.25)
 
 kernel1b = Kernel(name='EinsumB',
+                  start=kernel1a.end,
                   duration=10,
                   compute_util=0.2,
                   bw_util=0.9)
 
 kernel1c = Kernel(name='EinsumC',
+                  start=kernel1b.end,
                   duration=2,
                   compute_util=0.6,
                   bw_util=0.4)
@@ -53,12 +56,14 @@ CampaignDiagram(cascade1).draw()
 repeat = 4
 
 kernel2a = Kernel(name='EinsumA',
+                  start=0,
                   duration=5,
                   compute_util=0.8,
                   bw_util=0.2)
 
 
 kernel2b = Kernel(name='EinsumB',
+                  start=kernel2a.end,
                   duration=10,
                   compute_util=0.2,
                   bw_util=0.6)

@@ -1,19 +1,23 @@
-
-
 # Class to hold the parameters for Kernel
 class Kernel:
     def __init__(self,
                  name,
-                 duration,
-                 compute_util,
-                 bw_util,
+                 start=0,
+                 duration=0,
+                 compute_util=0,
+                 bw_util=0,
+                 origin=None,
                  bw_util_limit=1.0):
 
         self.name = name
-        self.start = 0
+        self.start = start
         self.duration = duration
         self.compute_util = compute_util
         self.bw_util = bw_util
+        if origin is None:
+            self.origin = self
+        else:
+            self.origin = origin
         self.bw_util_limit = bw_util_limit
         self.compute_color = None
         self.bw_color = None
@@ -40,6 +44,21 @@ class Kernel:
 
         return self
 
+    def copy(self):
+        """Creates a copy of the kernel.
+
+        Note: colors are not copied.
+
+        """
+
+        return Kernel(self.name,
+                      self.start,
+                      self.duration,
+                      self.compute_util,
+                      self.bw_util,
+                      self.origin,
+                      self.bw_util_limit)
+
     def scale_duration(self, scale):
         self.duration *= scale
 
@@ -52,15 +71,48 @@ class Kernel:
 
         self.compute_util *= inverse_dilation
         self.bw_util *= inverse_dilation
-        self.bw_util_limit *= inverse_dilation
 
         return self
 
+
+    def split(self, split_time):
+        """Splits the kernel into two at split_time."""
+
+        if split_time <= self.start or split_time >= self.end:
+            return self.copy(), None
+
+        # First part is from start to split_time
+        first_part = Kernel(self.name,
+                            self.start,
+                            split_time - self.start,
+                            self.compute_util,
+                            self.bw_util,
+                            self.origin)
+
+        # Second part is from split_time to original end
+        second_part = Kernel(self.name,
+                             split_time,
+                             self.end - split_time,
+                             self.compute_util,
+                             self.bw_util,
+                             self.origin)
+
+        return first_part, second_part
+
+    def __repr__(self):
+        """Returns a represention of the Kernel's state
+
+        TODO: Figure out how to avoid long line
+
+        """
+
+        return f"Kernel(name={self.name}, start={self.start:.2f}, duration={self.duration:.2f}, compute={self.compute_util:.2f}, bw={self.bw_util:.2f}, origin_start={self.origin.start})"
+
     def __str__(self):
         """Returns a human-readable string representation of the Kernel's state."""
-        return (f"Kernel(name={self.name}, start={self.start}, duration={self.duration}, "
-                f"compute_util={self.compute_util}, bw_util={self.bw_util}, "
-                f"compute_color={self.compute_color}, bw_util_limit={self.bw_util_limit})")
+
+        return (f"Kernel(name={self.name}, start={self.start:.2f}, duration={self.duration:.2f}, "
+                f"compute_util={self.compute_util:.2f}, bw_util={self.bw_util:.2f}, ")
 
 class KernelColor:
     # Define a list of 24 common colors in hexadecimal format
@@ -134,5 +186,3 @@ class KernelColor:
 
         # Convert back to hex
         return f'#{r:02X}{g:02X}{b:02X}'
-
-

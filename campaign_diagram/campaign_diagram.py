@@ -11,8 +11,12 @@ from campaign_diagram.cascade import *
 class CampaignDiagram:
     def __init__(self, cascade):
 
-        cascade.sort()
-        self.cascade = cascade
+        cascade.assign_colors()
+
+        kernels = cascade.kernels
+
+        self.kernels =  sorted(kernels,
+                               key=lambda k: (k.start, -k.bw_util, k.compute_util, k.name))
 
     # TODO: Move all bw scaling to here...
     def draw(self, bw_util_scaling=0.25):
@@ -20,8 +24,9 @@ class CampaignDiagram:
 
         labels = {}
         current_parallel_start = None
+        max_compute_util = 1.0
 
-        for kernel in self.cascade:
+        for kernel in self.kernels:
 
 #            print(f"Plotting: {kernel.name = } {kernel.start = } {kernel.duration} {kernel.compute_util = }")
 
@@ -35,22 +40,30 @@ class CampaignDiagram:
 
             if kernel.start != current_parallel_start:
                 current_parallel_start = kernel.start
-                current_compute_util = kernel.compute_util
-                bw_util_available = 1.0 * bw_util_scaling
+                cumulative_compute_util = kernel.compute_util
+                cumulative_bw_util = 0
             else:
-                current_compute_util += kernel.compute_util
+                cumulative_compute_util += kernel.compute_util
 
             # Draw the compute line with a label (name)
             ax.plot([current_parallel_start, kernel.end],
-                    [current_compute_util, current_compute_util],
+                    [cumulative_compute_util, cumulative_compute_util],
                     color=kernel.compute_color,
                     lw=2,
                     label=label)
 
+            if cumulative_compute_util > 1.0:
+                print(f"{kernel.start:.2f}: Compute Overflow ({cumulative_compute_util:.2f})")
+
+            max_compute_util= max(max_compute_util, cumulative_compute_util)
+
             # Draw the memory rectangle centered at compute_util (no label for memory)
 
-            rect_height = bw_util_scaling * kernel.bw_util
-            rect_bottom = current_compute_util - rect_height / 2
+            current_bw_util = kernel.bw_util
+            current_bw_util_scaled = bw_util_scaling * current_bw_util
+
+            rect_height = current_bw_util_scaled
+            rect_bottom = cumulative_compute_util - rect_height / 2
             rect = patches.Rectangle((current_parallel_start, rect_bottom),
                                      kernel.duration,
                                      rect_height,
@@ -58,29 +71,40 @@ class CampaignDiagram:
                                      alpha=0.5)
             ax.add_patch(rect)
 
-            # Draw the light gray box instead of the two dotted lines
+            # Draw the light gray box for available bw utiliization
 
-            bw_top = current_compute_util + bw_util_available / 2  # Top of the memory limit
-            bw_bottom = current_compute_util - bw_util_available / 2  # Bottom of the memory limit
+            bw_util_available = 1.0 - cumulative_bw_util
+            bw_util_available_scaled = bw_util_scaling * bw_util_available
+
+            # Top of the memory limit
+            bw_top = cumulative_compute_util + bw_util_available_scaled / 2
+            # Bottom of the memory limit
+            bw_bottom = cumulative_compute_util - bw_util_available_scaled / 2
+
             bw_rect = patches.Rectangle((current_parallel_start, bw_bottom),
                                         kernel.duration,
-                                        bw_util_available,
+                                        bw_util_available_scaled,
                                         color='lightgray',
                                         alpha=0.3)
             ax.add_patch(bw_rect)
 
-            bw_util_available -= bw_util_scaling * kernel.bw_util
+
+            cumulative_bw_util += current_bw_util
+
+            if cumulative_bw_util > 1.0:
+                print(f"{kernel.start:.2f}: Bandwidth overflow ({cumulative_bw_util:.2f})")
+                cumulative_bw_util = 1.0
 
         # Format the plot
 
         # TODO: Max util is not calculated correctly
 
-        start_min = min([kernel.start for kernel in self.cascade]) - 0.1
-        end_max = max([kernel.end for kernel in self.cascade]) + 0.1
-        max_util = max([kernel.compute_util + 1.0*bw_util_scaling for kernel in self.cascade])
+        start_min = min([kernel.start for kernel in self.kernels]) - 0.1
+        end_max = max([kernel.end for kernel in self.kernels]) + 0.1
+
 
         ax.set_xlim(start_min, end_max)
-        ax.set_ylim(0, 1.4*max_util)
+        ax.set_ylim(0, max_compute_util + bw_util_scaling)
         ax.set_xlabel('Time')
         ax.set_ylabel('Compute Utilization')
 
