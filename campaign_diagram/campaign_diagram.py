@@ -19,8 +19,8 @@ class CampaignDiagram:
                                key=lambda k: (k.start, -k.bw_util, k.compute_util, k.name))
 
     # TODO: Move all bw scaling to here...
-    def draw(self, bw_util_scaling=0.25):
-        fig, ax = plt.subplots()
+    def draw(self, title="Campaign Diagram", bw_util_scaling=0.25):
+        fig, ax = plt.subplots(figsize=(12.8, 9.6))
 
         labels = {}
         current_parallel_start = None
@@ -103,6 +103,7 @@ class CampaignDiagram:
         end_max = max([kernel.end for kernel in self.kernels]) + 0.1
 
 
+        ax.set_title(title)
         ax.set_xlim(start_min, end_max)
         ax.set_ylim(0, max_compute_util + bw_util_scaling)
         ax.set_xlabel('Time')
