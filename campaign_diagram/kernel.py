@@ -44,6 +44,13 @@ class Kernel:
 
         return self
 
+    def clone(self):
+        """ Create a copy of kernel with a new origin """
+
+        k = self.copy()
+        k.origin = k
+        return k
+
     def copy(self):
         """Creates a copy of the kernel.
 

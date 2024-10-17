@@ -42,6 +42,7 @@ class CampaignDiagram:
         cumulative_bw_util = 0
 
         for kernel in self.kernels:
+
             # Only label each kernel name once
             if kernel.name is None or kernel.name in labels:
                 label = None
@@ -103,41 +104,52 @@ class CampaignDiagram:
                 cumulative_bw_util = 1.0
 
             # Collect all drawing info in KernelDrawingInfo
-            drawing_info = KernelDrawingInfo(compute_line, memory_rect, bw_rect)
+            drawing_info = KernelDrawingInfo(kernel.origin,
+                                             compute_line,
+                                             memory_rect,
+                                             bw_rect)
+
             drawing_data.append(drawing_info)
 
         return drawing_data, max_compute_util
 
     def render_drawing_data(self, ax, drawing_data):
-        for info in drawing_data:
+        for n, info in enumerate(drawing_data):
+
+            # Deal with splits of an original kernel
+            found_it = False
+
+            # Search for the next piece of a split kernel
+            for m, candidate_info in enumerate(drawing_data[n+1:]):
+                if info.origin == candidate_info.origin:
+                    # Found a continuation of the current kernel
+                    if info.compute_line.util == candidate_info.compute_line.util:
+                        # Same heights - extend width and draw (or extend again) later
+                        info.extend(candidate_info)
+                        drawing_data[n+1+m] = info
+                        found_it = True
+                        break
+                    else:
+                        # Different heights - draw line connecting segments
+                        info.compute_line.draw_v(ax, candidate_info)
+                        break
+                else:
+                    # Stop looking on seeing new instance of same kernel
+                    if info.origin.name == candidate_info.origin.name:
+                        break
+
+            if found_it:
+                continue
+
             # Draw the compute line
-            ax.plot(
-                [info.compute_line.start, info.compute_line.end],
-                [info.compute_line.util, info.compute_line.util],
-                color=info.compute_line.color,
-                lw=2,
-                label=info.compute_line.label
-            )
+            info.compute_line.draw(ax)
 
             # Draw the memory rectangle
-            memory_rect = patches.Rectangle(
-                (info.memory_rect.start, info.memory_rect.bottom),
-                info.memory_rect.width,
-                info.memory_rect.height,
-                color=info.memory_rect.color,
-                alpha=info.memory_rect.alpha
-            )
-            ax.add_patch(memory_rect)
+            info.memory_rect.draw(ax)
 
             # Draw the bandwidth rectangle
-            bw_rect = patches.Rectangle(
-                (info.bw_rect.start, info.bw_rect.bottom),
-                info.bw_rect.width,
-                info.bw_rect.height,
-                color=info.bw_rect.color,
-                alpha=info.bw_rect.alpha
-            )
-            ax.add_patch(bw_rect)
+            info.bw_rect.draw(ax)
+
 
     def format_plot(self, ax, max_compute_util, title, bw_util_scaling):
         # Determine plot boundaries
@@ -166,10 +178,22 @@ class CampaignDiagram:
 
 
 class KernelDrawingInfo:
-    def __init__(self, compute_line, memory_rect, bw_rect):
+    def __init__(self, origin,compute_line, memory_rect, bw_rect):
+        self.origin = origin
         self.compute_line = compute_line  # Instance of LineDrawingInfo
         self.memory_rect = memory_rect    # Instance of RectangleDrawingInfo
         self.bw_rect = bw_rect            # Instance of RectangleDrawingInfo
+
+    def extend(self, extension):
+        """ Extend the length of self with width of extension """
+
+        extra_width = extension.memory_rect.width
+
+        self.compute_line.end += extra_width
+        self.memory_rect.width += extra_width
+        self.bw_rect.width += extra_width
+
+        return self
 
 
 class LineDrawingInfo:
@@ -179,6 +203,25 @@ class LineDrawingInfo:
         self.util = util  # Represents the cumulative compute utilization
         self.color = color
         self.label = label  # Optional label for the line (e.g., kernel name)
+
+    def draw(self, ax):
+        ax.plot(
+            [self.start, self.end],
+            [self.util, self.util],
+            color=self.color,
+            lw=2,
+            label=self.label
+        )
+
+    def draw_v(self, ax, next):
+
+        ax.plot(
+            [self.end, self.end],
+            [self.util, next.compute_line.util],
+            color=self.color,
+            lw=2,
+            label=self.label
+        )
 
 
 class RectangleDrawingInfo:
@@ -190,6 +233,16 @@ class RectangleDrawingInfo:
         self.color = color
         self.alpha = alpha  # Transparency of the rectangle
 
+    def draw(self, ax):
+        rect = patches.Rectangle(
+            (self.start, self.bottom),
+            self.width,
+            self.height,
+            color=self.color,
+            alpha=self.alpha
+            )
+
+        ax.add_patch(rect)
 
 
 if __name__ == "__main__":

@@ -100,9 +100,9 @@ class Cascade:
         split_kernels = []
 
         for kernel in self.kernels:
-            split_kernels.append(copy.copy(kernel).scale_duration(parts_fraction))
+            split_kernels.append(kernel.copy().scale_duration(parts_fraction))
 
-        split_cascade = Cascade([copy.copy(kernel) for kernel in parts*split_kernels],
+        split_cascade = Cascade([kernel.clone() for kernel in parts*split_kernels],
                         sequential=True)
 
         return split_cascade
