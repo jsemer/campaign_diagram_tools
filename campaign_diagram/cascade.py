@@ -3,7 +3,10 @@ import copy
 from typing import Tuple
 from typing import List
 
+from ruamel.yaml import YAML
+
 import logging
+
 
 from campaign_diagram.kernel import *
 from campaign_diagram.intervals import *
@@ -28,7 +31,31 @@ class Cascade:
 
 
     @classmethod
+    def fromYAML(cls, yaml_file):
+        """ Creat a cascade from a YAML file """
+
+        yaml = YAML()  # Initialize ruamel.yaml parser
+        with open(yaml_file, 'r') as file:
+            data = yaml.load(file)
+
+        cascade_data = data.get('cascade', {})
+        name = cascade_data.get('name', 'Unnamed Cascade')
+
+        kernels = []
+        for kernel_data in cascade_data.get('kernels', []):
+            kernel = Kernel(
+                name=kernel_data.get('name'),
+                duration=kernel_data.get('duration'),
+                compute_util=kernel_data.get('compute_util'),
+                bw_util=kernel_data.get('bw_util')
+            )
+            kernels.append(kernel)
+
+        return cls(kernels, sequential=True)
+
+    @classmethod
     def fromIntervals(cls, intervals):
+        """ Create a csacade from an interval data structure """
 
         c = cls([])
         c.intervals = intervals
