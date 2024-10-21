@@ -68,7 +68,8 @@ class CampaignDiagram:
                 end=kernel.end,
                 util=cumulative_compute_util,
                 color=kernel.compute_color,
-                label=label
+                label=label,
+                throttled_duration=kernel.throttled_duration
             )
 
             # Create RectangleDrawingInfo for memory utilization rectangle
@@ -188,26 +189,43 @@ class KernelDrawingInfo:
         """ Extend the length of self with width of extension """
 
         extra_width = extension.memory_rect.width
+        extra_throttled_duration = extension.compute_line.throttled_duration
 
         self.compute_line.end += extra_width
+        self.compute_line.throttled_duration += extra_throttled_duration
+
         self.memory_rect.width += extra_width
+
         self.bw_rect.width += extra_width
 
         return self
 
 
 class LineDrawingInfo:
-    def __init__(self, start, end, util, color, label=None):
+    def __init__(self, start, end, util, color, label=None, throttled_duration=0):
         self.start = start
         self.end = end
         self.util = util  # Represents the cumulative compute utilization
+        self.throttled_duration = throttled_duration
         self.color = color
         self.label = label  # Optional label for the line (e.g., kernel name)
 
     def draw(self, ax):
+
+        throttle_point = self.end - self.throttled_duration
+
         ax.plot(
-            [self.start, self.end],
+            [self.start, throttle_point],
             [self.util, self.util],
+            color=self.color,
+            lw=2,
+            label=self.label
+        )
+
+        ax.plot(
+            [throttle_point, self.end],
+            [self.util, self.util],
+            linestyle=':',
             color=self.color,
             lw=2,
             label=self.label

@@ -7,11 +7,13 @@ class Kernel:
                  compute_util=0,
                  bw_util=0,
                  origin=None,
-                 bw_util_limit=1.0):
+                 bw_util_limit=1.0,
+                 throttled_duration=0):
 
         self.name = name
         self.start = start
         self.duration = duration
+        self.throttled_duration = throttled_duration
         self.compute_util = compute_util
         self.bw_util = bw_util
         if origin is None:
@@ -58,13 +60,14 @@ class Kernel:
 
         """
 
-        return Kernel(self.name,
-                      self.start,
-                      self.duration,
-                      self.compute_util,
-                      self.bw_util,
-                      self.origin,
-                      self.bw_util_limit)
+        return Kernel(name=self.name,
+                      start=self.start,
+                      duration=self.duration,
+                      compute_util=self.compute_util,
+                      bw_util=self.bw_util,
+                      origin=self.origin,
+                      bw_util_limit=self.bw_util_limit,
+                      throttled_duration=self.throttled_duration)
 
     def scale_duration(self, scale):
         self.duration *= scale
@@ -83,26 +86,31 @@ class Kernel:
 
 
     def split(self, split_time):
-        """Splits the kernel into two at split_time."""
+        """Splits the kernel into two at split_time.
+
+        Notes:
+            - throttled_duration is dropped during a split
+            - bw_util_limit - is dropped during a split
+        """
 
         if split_time <= self.start or split_time >= self.end:
             return self.copy(), None
 
         # First part is from start to split_time
-        first_part = Kernel(self.name,
-                            self.start,
-                            split_time - self.start,
-                            self.compute_util,
-                            self.bw_util,
-                            self.origin)
+        first_part = Kernel(name=self.name,
+                            start=self.start,
+                            duration=split_time - self.start,
+                            compute_util=self.compute_util,
+                            bw_util=self.bw_util,
+                            origin=self.origin)
 
         # Second part is from split_time to original end
-        second_part = Kernel(self.name,
-                             split_time,
-                             self.end - split_time,
-                             self.compute_util,
-                             self.bw_util,
-                             self.origin)
+        second_part = Kernel(name=self.name,
+                             start=split_time,
+                             duration=self.end - split_time,
+                             compute_util=self.compute_util,
+                             bw_util=self.bw_util,
+                             origin=self.origin)
 
         return first_part, second_part
 

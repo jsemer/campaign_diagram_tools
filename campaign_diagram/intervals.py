@@ -175,7 +175,7 @@ class Interval:
         max_start = max([kernel.start for kernel in self])
 
         if min_start != max_start:
-            print(f"Broken intervl (starts)")
+            print(f"Broken interval (starts)")
             self.pretty_print()
 
         min_end = min([kernel.end for kernel in self])
@@ -229,7 +229,9 @@ class Interval:
 
         # Scale the attributes of each kernel proportionally
         for kernel in self.kernels:
+            old_duration = kernel.duration
             kernel.duration *= max_util
+            kernel.throttled_duration = kernel.duration - old_duration
             kernel.compute_util *= scale_factor
             kernel.bw_util *= scale_factor
 #            print(f"{kernel.duration = }")
