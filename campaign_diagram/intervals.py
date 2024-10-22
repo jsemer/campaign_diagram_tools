@@ -229,12 +229,15 @@ class Interval:
 
         # Scale the attributes of each kernel proportionally
         for kernel in self.kernels:
-            old_duration = kernel.duration
+
+            orig_duration = kernel.duration
             kernel.duration *= max_util
-            kernel.throttled_duration = kernel.duration - old_duration
+
+            kernel.throttled_duration *= max_util
+            kernel.throttled_duration += kernel.duration - orig_duration
+
             kernel.compute_util *= scale_factor
             kernel.bw_util *= scale_factor
-#            print(f"{kernel.duration = }")
 
         return self.kernels[0].end
 

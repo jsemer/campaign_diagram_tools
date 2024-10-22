@@ -75,7 +75,13 @@ class Kernel:
         return self
 
     def dilate(self, dilation):
+
+        orig_duration = self.duration
+
         self.duration *= dilation
+
+        self.throttled_duration *= dilation
+        self.throttled_duration += self.duration - orig_duration
 
         inverse_dilation = 1.0 / dilation
 
