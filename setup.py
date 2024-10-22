@@ -9,6 +9,7 @@ setup(
     url='https://github.com/jsemer/campaign_diagram_tools',
     packages=find_packages(),
     install_requires=[
+        'deprecated',
         'matplotlib',  # Dependency for plotting
     ],
     classifiers=[

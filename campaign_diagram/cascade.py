@@ -3,6 +3,8 @@ import copy
 from typing import Tuple
 from typing import List
 
+from deprecated import deprecated
+
 from ruamel.yaml import YAML
 
 import logging
@@ -19,10 +21,12 @@ class Cascade:
     # TODO: add support for  "+"
     # TODO: add supprot for len()
 
-    def __init__(self, kernels: List[Kernel], sequential=False):
+    def __init__(self, kernels: List[Kernel], name="", sequential=False):
 
         self.logger = logging.getLogger('campaign_diagram.cascade')
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.INFO)
+
+        self.name = name
 
         if sequential:
             self.assign_starts(kernels)
@@ -38,6 +42,7 @@ class Cascade:
         with open(yaml_file, 'r') as file:
             data = yaml.load(file)
 
+
         cascade_data = data.get('cascade', {})
         name = cascade_data.get('name', 'Unnamed Cascade')
 
@@ -51,13 +56,15 @@ class Cascade:
             )
             kernels.append(kernel)
 
-        return cls(kernels, sequential=True)
+        return cls(name=name,
+                   kernels=kernels,
+                   sequential=True)
 
     @classmethod
-    def fromIntervals(cls, intervals):
+    def fromIntervals(cls, name, intervals):
         """ Create a csacade from an interval data structure """
 
-        c = cls([])
+        c = cls(name=name, kernels=[])
         c.intervals = intervals
 
         return c
@@ -112,8 +119,12 @@ class Cascade:
             name = kernel.name
             kernel.set_color(kernel_color_map.getColor(name))
 
+    @deprecated(reason="Cascade.split() has been replaced by Cascade.tile()")
     def split(self, parts):
-        """Split each task of a cascade into "parts" parts
+        return self.tile(parts)
+
+    def tile(self, parts):
+        """Tile by splitting each task of a cascade into "parts" parts
 
         Note: This only works for a cascade that is a simple
         sequential series of kernels.
@@ -129,8 +140,9 @@ class Cascade:
         for kernel in self.kernels:
             split_kernels.append(kernel.copy().scale_duration(parts_fraction))
 
-        split_cascade = Cascade([kernel.clone() for kernel in parts*split_kernels],
-                        sequential=True)
+        split_cascade = Cascade(name=f"{self.name} (Tiled)",
+                                kernels=[kernel.clone() for kernel in parts*split_kernels],
+                                sequential=True)
 
         return split_cascade
 
@@ -183,17 +195,8 @@ class Cascade:
 
             previous_end += max_duration
 
-#            TODO: Add debug tracing
-#            print(f"{kernel1.start = }")
-#            print(f"{kernel2.start = }")
-#            print(f"{previous_end =}")
-
-        # TODO: allow Cascade creation without overwriting start/end times
-
-#        for k in new_kernels:
-#            print(f"{k}")
-
-        t = Cascade(new_kernels)
+        t = Cascade(name=f"{self.name} (Pipelined)",
+                    kernels=new_kernels)
 
         return t
 
@@ -218,10 +221,13 @@ class Cascade:
         # Throttle the kernels in place
         new_intervals.throttle()
 
-        return Cascade.fromIntervals(new_intervals)
+        return Cascade.fromIntervals(name=f"{self.name} (Throttled)",
+                                     intervals=new_intervals)
 
 
     def pretty_print(self, intervals=False):
+
+        print(f"Cascade: {self.name}")
 
         if not intervals:
             for kernel in self.kernels:
@@ -230,8 +236,7 @@ class Cascade:
             self.intervals.pretty_print()
 
     def __str__(self):
-        ""
+        """Returns a human-readable string representation of the CampaignDiagram's state."""
 
-        "Returns a human-readable string representation of the CampaignDiagram's state."""
         kernel_states = "\n".join([str(kernel) for kernel in self.kernels])
-        return f"CampaignDiagram with kernels:\n{kernel_states}"
+        return f"Cascade: {self.name} with kernels:\n{kernel_states}"

@@ -12,13 +12,18 @@ class CampaignDiagram:
     def __init__(self, cascade):
 
         cascade.assign_colors()
+        self.cascade = cascade
 
         kernels = cascade.kernels
-
         self.kernels =  sorted(kernels,
                                key=lambda k: (k.start, -k.bw_util, k.compute_util, k.name))
 
-    def draw(self, title="Campaign Diagram", bw_util_scaling=0.25):
+    def draw(self, title=None, bw_util_scaling=0.25):
+        """Draw the campaign diagram """
+
+        # Add some space before diagram
+        print("")
+
         # Create figure and axes
         fig, ax = plt.subplots(figsize=(12.8, 9.6))
 
@@ -27,6 +32,9 @@ class CampaignDiagram:
 
         # Render the kernels
         self.render_drawing_data(ax, drawing_data)
+
+        if title is None:
+            title = f"Campaign Diagram: {self.cascade.name}"
 
         # Final formatting and display of the plot
         self.format_plot(ax, max_compute_util, title, bw_util_scaling)
