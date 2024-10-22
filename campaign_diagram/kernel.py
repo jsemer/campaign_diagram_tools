@@ -115,19 +115,24 @@ class Kernel:
         return first_part, second_part
 
     def __repr__(self):
-        """Returns a represention of the Kernel's state
+        """Returns a represention of the Kernel's state """
 
-        TODO: Figure out how to avoid long line
-
-        """
-
-        return f"Kernel(name={self.name}, start={self.start:.2f}, duration={self.duration:.2f}, compute={self.compute_util:.2f}, bw={self.bw_util:.2f}, origin_start={self.origin.start})"
+        return (f"Kernel("
+                f"name={self.name}, "
+                f"start={self.start:.2f}, "
+                f"duration={self.duration:.2f}, "
+                f"compute={self.compute_util:.2f}, "
+                f"bw={self.bw_util:.2f}, "
+                f"origin_start={self.origin.start})")
 
     def __str__(self):
         """Returns a human-readable string representation of the Kernel's state."""
 
-        return (f"Kernel(name={self.name}, start={self.start:.2f}, duration={self.duration:.2f}, "
-                f"compute_util={self.compute_util:.2f}, bw_util={self.bw_util:.2f}, ")
+        return (f"Kernel(name={self.name}, "
+                f"start={self.start:.2f}, "
+                f"duration={self.duration:.2f}, "
+                f"compute_util={self.compute_util:.2f}, "
+                f"bw_util={self.bw_util:.2f}")
 
 class KernelColor:
     # Define a list of 24 common colors in hexadecimal format
