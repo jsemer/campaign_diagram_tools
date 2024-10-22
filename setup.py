@@ -11,6 +11,7 @@ setup(
     install_requires=[
         'deprecated',
         'matplotlib',  # Dependency for plotting
+        'ruamel.yaml',
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
