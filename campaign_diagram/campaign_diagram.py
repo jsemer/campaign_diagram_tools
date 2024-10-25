@@ -52,11 +52,13 @@ class CampaignDiagram:
         for kernel in self.kernels:
 
             # Only label each kernel name once
-            if kernel.name is None or kernel.name in labels:
+            cropped_name = kernel.name.split('.')[0]
+
+            if cropped_name is None or cropped_name in labels:
                 label = None
             else:
-                label = kernel.name
-                labels[kernel.name] = True
+                label = cropped_name
+                labels[label] = True
 
             if kernel.start != current_parallel_start:
                 current_parallel_start = kernel.start
@@ -180,6 +182,11 @@ class CampaignDiagram:
         # Show the plot
         plt.show()
 
+        print(f"Cascade duration: {self.cascade.duration():.2f}")
+        print(f"Cascade average compute utilization: {self.cascade.avg_compute_util():.2f}")
+        print(f"Cascade average bw utilization: {self.cascade.avg_bw_util():.2f}")
+
+
     def __str__(self):
         """Returns a human-readable string representation of the CampaignDiagram's state."""
         kernel_states = "\n".join([str(kernel) for kernel in self.kernel_list])
@@ -236,7 +243,7 @@ class LineDrawingInfo:
             linestyle=':',
             color=self.color,
             lw=2,
-            label=self.label
+            label=None
         )
 
     def draw_v(self, ax, next):

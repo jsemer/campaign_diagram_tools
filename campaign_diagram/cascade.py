@@ -87,6 +87,21 @@ class Cascade:
 
         return iter(self.kernels)
 
+    def duration(self):
+       """ Find duration of cascade """
+
+       return self.intervals.duration()
+
+    def avg_compute_util(self):
+        """ Return average compute util """
+
+        return self.intervals.avg_compute_util()
+
+    def avg_bw_util(self):
+        """ Return average  bw util """
+
+        return self.intervals.avg_bw_util()
+
     def is_sequential(self):
 
         last_end = 0

@@ -94,10 +94,52 @@ class Intervals:
 
         return iter(self.intervals)
 
+    def __getitem__(self, index):
+        """ Return an indexed interval """
+
+        return self.intervals[index]
 
     def copy(self):
 
         return copy.deepcopy(self)
+
+    def duration(self):
+        """ Find duration of cascade """
+
+        total_duration = 0
+
+        for interval in self.intervals:
+            total_duration += interval.duration
+
+        return total_duration
+
+    def avg_compute_util(self):
+        """ Average compute utilization """
+
+        total_compute = 0
+        total_duration = 0
+
+        for interval in self.intervals:
+            interval_duration = interval.duration
+            total_compute += interval_duration * interval.compute_util()
+            total_duration += interval_duration
+
+        return total_compute/total_duration
+
+
+    def avg_bw_util(self):
+        """ Average bw utilization """
+
+        total_bw = 0
+        total_duration = 0
+
+        for interval in self.intervals:
+            interval_duration = interval.duration
+            total_bw += interval_duration * interval.bw_util()
+            total_duration += interval_duration
+
+        return total_bw/total_duration
+
 
     def throttle(self):
 
@@ -155,6 +197,12 @@ class Interval:
         return self.kernels[0].start if self.kernels else None
 
     @property
+    def duration(self):
+        """The duration of the interval is the duration of the first kernel """
+
+        return self.kernels[0].duration if self.kernels else None
+
+    @property
     def end(self):
         """The end of the interval is the end of the first kernel (since all kernels in an interval share the same end time)."""
 
@@ -168,6 +216,32 @@ class Interval:
         """Return an iterator over the kernel instances."""
 
         return iter(self.kernels)
+
+    def __getitem__(self, index):
+        """ Return an indexed kernel """
+
+        return self.kernels[index]
+
+    def compute_util(self):
+        """ Calculate average compute utilization """
+
+        total_compute_util = 0
+
+        for kernel in self.kernels:
+            total_compute_util += kernel.compute_util
+
+        return total_compute_util
+
+    def bw_util(self):
+        """ Calculate average bw utilization """
+
+        total_bw_util = 0
+
+        for kernel in self.kernels:
+            total_bw_util += kernel.bw_util
+
+        return total_bw_util
+
 
     def check(self):
 

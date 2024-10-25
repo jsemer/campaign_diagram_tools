@@ -176,6 +176,8 @@ class KernelColor:
 
     def getColor(self, name):
 
+        name = name.split('.')[0]
+
         if name in self.name2color:
             return self.name2color[name]
         else:
