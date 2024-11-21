@@ -28,7 +28,7 @@ class CampaignDiagram:
         fig, ax = plt.subplots(figsize=(12.8, 9.6))
 
         # Get drawing data
-        drawing_data, max_compute_util = self.get_drawing_data(bw_util_scaling)
+        drawing_data, min_compute_util, max_compute_util = self.get_drawing_data(bw_util_scaling)
 
         # Render the kernels
         self.render_drawing_data(ax, drawing_data)
@@ -37,13 +37,14 @@ class CampaignDiagram:
             title = f"Campaign Diagram: {self.cascade.name}"
 
         # Final formatting and display of the plot
-        self.format_plot(ax, max_compute_util, title, bw_util_scaling)
+        self.format_plot(ax, min_compute_util, max_compute_util, title, bw_util_scaling)
 
         return self
 
     def get_drawing_data(self, bw_util_scaling):
         labels = {}
         current_parallel_start = None
+        min_compute_util = bw_util_scaling  # Hack to set y-min at 0
         max_compute_util = 1.0
         drawing_data = []
         cumulative_compute_util = 0
@@ -70,6 +71,7 @@ class CampaignDiagram:
             if cumulative_compute_util > 1.0:
                 print(f"{kernel.start:.2f}: Compute Overflow ({cumulative_compute_util:.2f})")
 
+            min_compute_util = min(min_compute_util, cumulative_compute_util)
             max_compute_util = max(max_compute_util, cumulative_compute_util)
 
             # Create LineDrawingInfo for the compute line
@@ -87,6 +89,7 @@ class CampaignDiagram:
             current_bw_util_scaled = bw_util_scaling * current_bw_util
             rect_height = current_bw_util_scaled
             rect_bottom = cumulative_compute_util - rect_height / 2
+
             memory_rect = RectangleDrawingInfo(
                 start=current_parallel_start,
                 bottom=rect_bottom,
@@ -100,6 +103,7 @@ class CampaignDiagram:
             bw_util_available = 1.0 - cumulative_bw_util
             bw_util_available_scaled = bw_util_scaling * bw_util_available
             bw_bottom = cumulative_compute_util - bw_util_available_scaled / 2
+
             bw_rect = RectangleDrawingInfo(
                 start=current_parallel_start,
                 bottom=bw_bottom,
@@ -122,7 +126,7 @@ class CampaignDiagram:
 
             drawing_data.append(drawing_info)
 
-        return drawing_data, max_compute_util
+        return drawing_data, min_compute_util, max_compute_util
 
     def render_drawing_data(self, ax, drawing_data):
         for n, info in enumerate(drawing_data):
@@ -162,15 +166,18 @@ class CampaignDiagram:
             info.bw_rect.draw(ax)
 
 
-    def format_plot(self, ax, max_compute_util, title, bw_util_scaling):
+    def format_plot(self, ax, min_compute_util, max_compute_util, title, bw_util_scaling):
         # Determine plot boundaries
         start_min = min([kernel.start for kernel in self.kernels]) - 0.1
         end_max = max([kernel.end for kernel in self.kernels]) + 0.1
 
         # Set title, limits, and labels
         ax.set_title(title)
+
         ax.set_xlim(start_min, end_max)
-        ax.set_ylim(0, max_compute_util + bw_util_scaling)
+        ax.set_ylim(min_compute_util - bw_util_scaling,
+                    max_compute_util + bw_util_scaling)
+
         ax.set_xlabel('Time')
         ax.set_ylabel('Compute Utilization')
 
