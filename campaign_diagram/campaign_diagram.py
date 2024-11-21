@@ -18,14 +18,17 @@ class CampaignDiagram:
         self.kernels =  sorted(kernels,
                                key=lambda k: (k.start, -k.bw_util, k.compute_util, k.name))
 
-    def draw(self, title=None, bw_util_scaling=0.25):
+    def draw(self, title=None, bw_util_scaling=0.25, ax=None):
         """Draw the campaign diagram """
 
         # Add some space before diagram
         print("")
 
         # Create figure and axes
-        fig, ax = plt.subplots(figsize=(12.8, 9.6))
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(12.8, 9.6))
+        else:
+            fig = ax.get_figure()
 
         # Get drawing data
         drawing_data, min_compute_util, max_compute_util = self.get_drawing_data(bw_util_scaling)
