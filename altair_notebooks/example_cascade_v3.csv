@@ -1,0 +1,4 @@
+Einsum,runtime,Memory_Utilization,Compute_Utilization,mem_latency,comp_latency,total_traffic,Starting_Time,Time_Stamp,End_Time,fusion_group
+E,1.0,0.1,0.9,0.1,0.9,100000000000.0,7.0,7.0,8.0,fg3
+F,1.0,0.4,0.2,0.4,0.2,100000000000.0,8.0,8.0,9.0,fg3
+G,2.0,0.6,0.3,1.2,0.6,100000000000.0,9.0,9.0,11.0,fg3

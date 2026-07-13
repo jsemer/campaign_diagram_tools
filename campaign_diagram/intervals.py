@@ -10,7 +10,7 @@ console_handler.setFormatter(formatter)
 logger.setLevel(logging.INFO)
 logger.addHandler(console_handler)
 
-
+from numpy import isclose
 
 class Intervals:
     def __init__(self, kernels):
@@ -19,9 +19,15 @@ class Intervals:
 
         # Sort by (start time, end time)
         self.kernels = sorted(kernels, key=lambda k: (k.start, -k.duration))
+        # print(f"Intervals.py -- DEBUG:")
+        # for kernel in self.kernels:
+        #   print(f"{kernel.name},{kernel.start}, {kernel.end}\n")
 
         self.intervals = []
         self._group_kernels_into_intervals(kernels)
+        # for interval in self.intervals:
+        #   print(f"Processing interval...")
+        #self.pretty_print()
 
     def _group_kernels_into_intervals(self, kernels):
         """Group kernels into intervals based on overlapping durations and same start time."""
@@ -29,10 +35,11 @@ class Intervals:
         # Copy the sorted list to events (why?)
         events = list(kernels)
 
+
         while events:
             # Get the next kernel and its start time
             kernel = events.pop(0)
-
+          
             # Initialize the minimum end time with the first kernel's end time
             current_start_time = kernel.start
             min_end_time = kernel.end
@@ -40,7 +47,7 @@ class Intervals:
             # Start a new interval with the current kernel
             # Collect all kernels that start at the same time
             active_kernels = [kernel]
-            while events and events[0].start == current_start_time:
+            while events and isclose(events[0].start, current_start_time): #events[0].start == current_start_time:
                 next_kernel = events.pop(0)
                 active_kernels.append(next_kernel)
                 min_end_time = min(min_end_time, next_kernel.end)
@@ -59,7 +66,7 @@ class Intervals:
             for idx in reversed(range(len(active_kernels))):
                 active_kernel = active_kernels[idx]
 
-                if active_kernel.end == min_end_time:
+                if isclose(active_kernel.end, min_end_time):
                     logger.debug(f"Adding: {active_kernel}")
                     updated_kernels.append(active_kernel.copy())
                 else:
@@ -75,11 +82,13 @@ class Intervals:
                     # Insert the remainder back at the front of the events list
                     if remainder is not None:
                         logger.debug("Remainder {remainder}")
+                        #print(f"Remainder {active_kernel.name}{remainder}")
                         events.insert(0, remainder)
 
             # After processing, add the adjusted active kernels to the interval
             interval = Interval()
-            interval.kernels = updated_kernels
+            interval.kernels = sorted(updated_kernels, key=lambda k: (k.start, -k.duration)) #updated_kernels
+
             interval.check()
 
             # Append new interval to intervals
@@ -100,7 +109,6 @@ class Intervals:
         return self.intervals[index]
 
     def copy(self):
-
         return copy.deepcopy(self)
 
     def duration(self):
@@ -143,6 +151,8 @@ class Intervals:
 
     def throttle(self):
 
+
+      
         prev_end_time = 0
 
         for n, interval in enumerate(self.intervals):
@@ -155,7 +165,9 @@ class Intervals:
 
             # Update prev_end_time to the new_end_time of the interval
             prev_end_time = max(new_end_time, scaled_end_time)
-
+          
+        # print(f"In throttle:")
+        # self.pretty_print()
         return self
 
 
@@ -179,9 +191,11 @@ class Intervals:
         """Pretty print the intervals"""
 
         for i, interval in enumerate(self):
-            print(f"Interval: {i}")
+            print(f"\nInterval: {i}, {interval.start}, {interval.end}")
             for k, kernel in enumerate(interval):
                 print(f"Kernel ({k}) - {kernel}")
+                print(f"     {kernel.start}--{kernel.end}\n")
+            
 
     def __repr__(self):
         return f"Intervals({len(self.intervals)} intervals)"
@@ -244,25 +258,29 @@ class Interval:
 
 
     def check(self):
-
+        """
+        Check that all kernels have the same start and end time
+        within an interval
+        """
+      
         min_start = min([kernel.start for kernel in self])
         max_start = max([kernel.start for kernel in self])
 
         if min_start != max_start:
             print(f"Broken interval (starts)")
-            self.pretty_print()
+            #self.pretty_print()
 
         min_end = min([kernel.end for kernel in self])
         max_end = max([kernel.end for kernel in self])
 
         if min_end != max_end:
             print(f"Broken interval (ends)")
-            self.pretty_print()
+            #self.pretty_print()
 
     def update_start_times(self, new_start_time):
         """Update the start time of all kernels
 
-        Update the startg time within the interval to match the
+        Update the starting time within the interval to match the
         interval's new start time.  Also returns the updated end time
         (max of all kernel end times).
 
@@ -290,6 +308,28 @@ class Interval:
         total_compute_util = self.total_compute_util()
         total_bw_util = self.total_bw_util()
 
+        #####################################################################
+        # PATH c: accumulative-aware aggregation across CONCURRENT kernels. #
+        #                                                                   #
+        # The decision is now driven by each sub-resource's `accumulative`  #
+        # flag (resolved once at update_global_util_view time and stashed   #
+        # on the kernel), NOT by which axis it lives on:                    #
+        #   - accumulative sub-resources POOL onto one budget -> their fills #
+        #     SUM across concurrent kernels;                                #
+        #   - non-accumulative sub-resources are independent 0..1 gauges ->  #
+        #     PER LEVEL we take the max across concurrent kernels, then the  #
+        #     single busiest level. Summing them (e.g. L2 0.6 + DRAM 0.6 ->  #
+        #     1.2) would spuriously throttle.                               #
+        # A mixed axis takes max(pool sum, busiest gauge). Only kick in when #
+        # some kernel carries the corresponding map; pure-scalar intervals  #
+        # keep the exact legacy sum, so single-resource output is           #
+        # byte-identical.                                                   #
+        #####################################################################
+        if any(getattr(k, "compute_subutils", None) for k in self.kernels):
+            total_compute_util = self._axis_demand("compute")
+        if any(getattr(k, "memory_subutils", None) for k in self.kernels):
+            total_bw_util = self._axis_demand("memory")
+
         # Find the maximum of the two sums
         max_util = max(total_compute_util, total_bw_util)
 
@@ -303,16 +343,17 @@ class Interval:
 
         # Scale the attributes of each kernel proportionally
         for kernel in self.kernels:
+            kernel.dilate(max_util)
+            # orig_duration = kernel.duration
+            # kernel.duration *= max_util
 
-            orig_duration = kernel.duration
-            kernel.duration *= max_util
+            # #kernel.throttled_duration *= max_util
+            # kernel.throttled_duration = kernel.duration - kernel.orig_duration
 
-            kernel.throttled_duration *= max_util
-            kernel.throttled_duration += kernel.duration - orig_duration
+            # kernel.compute_util *= scale_factor
+            # kernel.bw_util *= scale_factor
 
-            kernel.compute_util *= scale_factor
-            kernel.bw_util *= scale_factor
-
+            # print(f"WE HAVE: {kernel.name} -- {orig_duration}, {max_util}, {kernel.duration}, {kernel.throttled_duration}")
         return self.kernels[0].end
 
     def total_compute_util(self):
@@ -323,10 +364,63 @@ class Interval:
         """Return the total bandwidth utilization for this interval."""
         return sum(kernel.bw_util for kernel in self.kernels)
 
+    def _axis_demand(self, axis):
+        """Flag-driven demand for one axis across this interval's kernels (PATH c).
+
+        ``axis`` is "compute" or "memory". Each map-carrying kernel exposes its
+        per-sub-resource fills and the resolved ``accumulative`` flag (pinned by
+        update_global_util_view). We partition by that flag:
+
+          - ACCUMULATIVE sub-resources POOL, so their fills (util * p_of_tot)
+            SUM across every concurrent kernel -- they share one budget;
+          - NON-ACCUMULATIVE sub-resources are independent 0..1 gauges, so PER
+            LEVEL we take the max across concurrent kernels, then the single
+            busiest level.
+
+        A scalar kernel (no map on this axis) contributes its pooled util to the
+        accumulative pool, matching the legacy all-sum behavior. When pool and
+        gauge contributions coexist the demand is max(pool sum, busiest gauge).
+        Only ever called when at least one kernel carries the map, so the
+        pure-scalar sum path is untouched.
+        """
+        if axis == "compute":
+            submap_attr, subfills_attr, subaccum_attr, scalar_attr = (
+                "compute_subutils", "compute_subfills",
+                "compute_subaccum", "compute_util")
+        else:
+            submap_attr, subfills_attr, subaccum_attr, scalar_attr = (
+                "memory_subutils", "memory_subfills",
+                "memory_subaccum", "bw_util")
+
+        pool_sum = 0.0
+        have_pool = False
+        level_max = {}
+        for kernel in self.kernels:
+            fills = getattr(kernel, subfills_attr, None)
+            if getattr(kernel, submap_attr, None) and fills:
+                flags = getattr(kernel, subaccum_attr, None) or {}
+                for level, (u, _p, fill) in fills.items():
+                    # Default accumulative for an unflagged level -> pool.
+                    if flags.get(level, True):
+                        pool_sum += fill
+                        have_pool = True
+                    else:
+                        level_max[level] = max(level_max.get(level, 0.0), u)
+            else:
+                pool_sum += float(getattr(kernel, scalar_attr))
+                have_pool = True
+
+        gauge = max(level_max.values()) if level_max else 0.0
+        if level_max and have_pool:
+            return max(pool_sum, gauge)
+        if level_max:
+            return gauge
+        return pool_sum
+
     def pretty_print(self):
 
         for kernel in self:
-            print(f"{kernel}")
+            print(f"{kernel}\n")
 
     def __repr__(self):
         return f"Interval(start={self.start:.2f}, end={self.end:.2f}, kernels={self.kernels})"
